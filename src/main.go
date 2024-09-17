@@ -62,12 +62,17 @@ func initTable() SymbolDropTable {
 }
 
 func (s SymbolDropTable) rollTable() Symbol {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	roll := r.Float64() // generate a random float between [0 and 1)
+	maxRoll := 0
+	for _, weight := range s {
+		maxRoll += weight
+	}
 
-	var cumulativeProbability float64
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	roll := r.Intn(maxRoll) // generate a random int between [0 and maxRoll)
+
+	cumulativeProbability := 0
 	for e, prob := range s {
-		cumulativeProbability += float64(prob)
+		cumulativeProbability += prob
 		if roll < cumulativeProbability {
 			return Symbol(e)
 		}
@@ -97,11 +102,11 @@ func (m *model) turnToNight() {
 	m.symbolDT[emoji.FullMoon] = 0
 	m.symbolDT[emoji.Joker] = initTable()[emoji.Joker] * 4
 	m.symbolDT[emoji.Skull] = initTable()[emoji.Skull] * 2
-	m.symbolDT[emoji.Keycap6] = 50
-	m.symbolDT[emoji.Keycap7] = 50
-	m.symbolDT[emoji.Keycap8] = 50
-	m.symbolDT[emoji.Keycap9] = 50
-	m.symbolDT[emoji.Keycap10] = 50
+	m.symbolDT[emoji.Keycap6] = 100
+	m.symbolDT[emoji.Keycap7] = 100
+	m.symbolDT[emoji.Keycap8] = 100
+	m.symbolDT[emoji.Keycap9] = 100
+	m.symbolDT[emoji.Keycap10] = 100
 }
 
 func (s Symbol) toEmoji() emoji.Emoji {
