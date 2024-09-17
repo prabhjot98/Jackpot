@@ -26,6 +26,7 @@ type model struct {
 	jackpotAmount int
 	slot          Slot
 	isFreeSpin    bool
+	feverMode     bool
 	symbolDT      SymbolDropTable
 	multiplier    int
 }
@@ -49,7 +50,7 @@ func initTable() SymbolDropTable {
 		emoji.Keycap9:       0,
 		emoji.Keycap10:      0,
 		emoji.HoneyPot:      50,
-		emoji.Joker:         50,
+		emoji.Joker:         5000,
 		emoji.HundredPoints: 50,
 		emoji.GameDie:       50,
 		emoji.FreeButton:    50,
@@ -152,7 +153,7 @@ func (s Symbol) toInt() int {
 	return -1
 }
 
-func (s Slot) getFirstNumber() Symbol {
+func (s Slot) getFirstNonJokerSymbol() Symbol {
 	if s[0] != Symbol(emoji.Joker) {
 		return s[0]
 	}
@@ -175,16 +176,22 @@ func (s Slot) allSymbolsMatch() bool {
 // either returns the number they match if they all match or -1 if they don't match
 func (s Slot) allNumbersMatch() int {
 	// handle joker logic
+
+	// special case if all symbols are jokers
+	if s[0] == Symbol(emoji.Joker) && s[1] == Symbol(emoji.Joker) && s[2] == Symbol(emoji.Joker) {
+		return 0
+	}
+
 	if (s[0] == Symbol(emoji.Joker) && s[1] == s[2]) ||
 		(s[1] == Symbol(emoji.Joker) && s[0] == s[2]) ||
 		(s[2] == Symbol(emoji.Joker) && s[0] == s[1]) {
-		return s.getFirstNumber().toInt()
+		return s.getFirstNonJokerSymbol().toInt()
 	}
 
 	if s[0] == Symbol(emoji.Joker) && s[1] == Symbol(emoji.Joker) ||
 		s[1] == Symbol(emoji.Joker) && s[2] == Symbol(emoji.Joker) ||
 		s[0] == Symbol(emoji.Joker) && s[2] == Symbol(emoji.Joker) {
-		return s.getFirstNumber().toInt()
+		return s.getFirstNonJokerSymbol().toInt()
 	}
 
 	// no jokers here :)
@@ -224,7 +231,14 @@ func (m *model) SpinSlots() {
 }
 
 func (m *model) handleWin() {
-	switch m.slot[0] {
+	if m.slot[0] == Symbol(emoji.Joker) &&
+		m.slot[1] == Symbol(emoji.Joker) &&
+		m.slot[2] == Symbol(emoji.Joker) {
+		m.spinnerMsg = "Hahahahahahahaha " + emoji.RollingOnTheFloorLaughing.String() + emoji.RollingOnTheFloorLaughing.String() + emoji.RollingOnTheFloorLaughing.String()
+		return
+	}
+
+	switch m.slot.getFirstNonJokerSymbol() {
 	case Symbol(emoji.HoneyPot):
 		m.dollars += m.jackpotAmount
 		m.spinnerMsg = "🎉🎉🎉YOU HIT THE JACKPOT!!! YOU WON " + strconv.Itoa(
@@ -234,8 +248,6 @@ func (m *model) handleWin() {
 	case Symbol(emoji.HundredPoints):
 		m.dollars += 100
 		m.spinnerMsg = "🎉 Nice 100! You won 100 dollars!"
-	case Symbol(emoji.Joker):
-		m.spinnerMsg = "Hahahahahahahaha " + emoji.RollingOnTheFloorLaughing.String() + emoji.RollingOnTheFloorLaughing.String() + emoji.RollingOnTheFloorLaughing.String()
 	case Symbol(emoji.GameDie):
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		roll := r.Intn(6) + 1 // generate a random int between [1 and 6]
@@ -250,6 +262,9 @@ func (m *model) handleWin() {
 	case Symbol(emoji.FullMoon):
 		m.turnToNight()
 		m.spinnerMsg = "It's nighttime now! Numbers 1-10 can show up and the chance of jokers and skulls is increased!"
+	case Symbol(emoji.Fire):
+		m.feverMode = true
+		m.spinnerMsg = "You're in fever mode now!"
 	case Symbol(emoji.Keycap1):
 		fallthrough
 	case Symbol(emoji.Keycap2):
@@ -269,9 +284,17 @@ func (m *model) handleWin() {
 	case Symbol(emoji.Keycap9):
 		fallthrough
 	case Symbol(emoji.Keycap10):
-		wonDollars := m.slot.getFirstNumber().toInt() * m.multiplier
+		feverMulti := 1
+		feverTxt := ""
+		if m.feverMode {
+			m.feverMode = false
+			feverMulti = 2
+			feverTxt = "\nBut doubled because you were in fever mode!" + emoji.Fire.String()
+
+		}
+		wonDollars := m.slot.getFirstNonJokerSymbol().toInt() * m.multiplier * feverMulti
 		m.dollars += wonDollars
-		m.spinnerMsg = "🎉You won " + strconv.Itoa(wonDollars) + " dollars!🎉"
+		m.spinnerMsg = "🎉You won " + strconv.Itoa(wonDollars) + " dollars!🎉" + feverTxt
 	}
 }
 
@@ -310,6 +333,7 @@ func initialModel() model {
 		jackpotAmount: 0,
 		multiplier:    1,
 		isFreeSpin:    false,
+		feverMode:     false,
 		slot:          initSlot(),
 		symbolDT:      initTable(),
 	}
@@ -364,14 +388,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-
-	str := "         " + lipgloss.NewStyle().
+	slotStr := "         " + lipgloss.NewStyle().
 		Render(m.slot.toStringArray()...) +
 		"  x" + strconv.Itoa(m.multiplier) + " mult"
 
 	tokenStr := strconv.Itoa(m.tokens)
 	dollarsStr := strconv.Itoa(m.dollars)
 	jackpotAmountStr := strconv.Itoa(m.jackpotAmount)
+
+	feverModeStr := ""
+	if m.feverMode {
+		feverModeStr = "\n" + emoji.Fire.String() + "You're on fire! Your next win will be doubled!" + emoji.Fire.String()
+	}
 
 	timeStr := "It is currently daytime! You are safe " + emoji.Sunrise.String()
 	if !m.isDay {
@@ -384,6 +412,7 @@ func (m model) View() string {
 		"\nYou have " + dollarsStr + " dollars" +
 		"\n" + timeStr +
 		"\nThe current jackpot is worth " + jackpotAmountStr + " dollars!" +
+		feverModeStr +
 		"\nPress 'q' to quit" + "\n"
 	console := lipgloss.NewStyle().Align(lipgloss.Center, lipgloss.Center).Height(10)
 
@@ -391,7 +420,7 @@ func (m model) View() string {
 
 	screenTxt := lipgloss.JoinVertical(
 		lipgloss.Center,
-		style.Render(str),
+		style.Render(slotStr),
 		console.Render(consoleTxt),
 	)
 
