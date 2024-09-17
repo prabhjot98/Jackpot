@@ -15,15 +15,17 @@ import (
 )
 
 type model struct {
-	tokens       int
-	dollars      int
-	ticksLeft    int
-	spinnerMsg   string
-	spinning     bool
-	windowWidth  int
-	windowHeight int
-	slot         Slot
-	symbolDT     SymbolDropTable
+	tokens        int
+	dollars       int
+	ticksLeft     int
+	spinnerMsg    string
+	spinning      bool
+	isDay         bool
+	windowWidth   int
+	windowHeight  int
+	jackpotAmount int
+	slot          Slot
+	symbolDT      SymbolDropTable
 }
 
 type SymbolDropTable map[emoji.Emoji]int
@@ -116,11 +118,46 @@ func (s Symbol) toInt() int {
 	return -1
 }
 
-func (s Slot) allMatch() bool {
-	if s[0] == s[1] && s[0] == s[2] {
-		return true
+func (s Slot) getFirstNumber() Symbol {
+	if s[0] != Symbol(emoji.Joker) {
+		return s[0]
 	}
-	return false
+	if s[1] != Symbol(emoji.Joker) {
+		return s[1]
+	}
+	if s[2] != Symbol(emoji.Joker) {
+		return s[2]
+	}
+	return Symbol(emoji.Joker)
+}
+
+// either returns the number they match if they all match or -1 if they don't match
+func (s Slot) allNumbersMatch() int {
+	// handle joker logic
+	// special case if all 3 symbols are jokers
+	if s[0] == Symbol(emoji.Joker) && s[1] == Symbol(emoji.Joker) && s[2] == Symbol(emoji.Joker) {
+		return -99
+	}
+
+	if (s[0] == Symbol(emoji.Joker) && s[1] == s[2]) ||
+		(s[1] == Symbol(emoji.Joker) && s[0] == s[2]) ||
+		(s[2] == Symbol(emoji.Joker) && s[0] == s[1]) {
+		return s.getFirstNumber().toInt()
+	}
+
+	if s[0] == Symbol(emoji.Joker) && s[1] == Symbol(emoji.Joker) ||
+		s[1] == Symbol(emoji.Joker) && s[2] == Symbol(emoji.Joker) ||
+		s[0] == Symbol(emoji.Joker) && s[2] == Symbol(emoji.Joker) {
+		return s.getFirstNumber().toInt()
+	}
+
+	// no jokers here :)
+	if s[0] == s[1] && s[0] == s[2] {
+		return s[0].toInt()
+	}
+
+	// no match
+	return -1
 }
 
 func (s Slot) toStringArray() []string {
@@ -129,7 +166,6 @@ func (s Slot) toStringArray() []string {
 		strs = append(strs, s[i].toString())
 	}
 	return strs
-
 }
 
 func initSlot() Slot {
@@ -151,17 +187,58 @@ func (m *model) SpinSlots() {
 	m.slot[2] = m.symbolDT.rollTable()
 }
 
-func (m *model) handleWin(wonDollars int) {
-	m.dollars += wonDollars
-	m.spinnerMsg = "🎉You won " + strconv.Itoa(wonDollars) + " dollars!🎉"
+func (m *model) handleWin() {
+	switch m.slot[0] {
+	case Symbol(emoji.HoneyPot):
+		m.dollars += m.jackpotAmount
+		m.spinnerMsg = "🎉🎉🎉YOU HIT THE JACKPOT!!! YOU WON " + strconv.Itoa(
+			m.jackpotAmount,
+		) + " dollars!!!!🎉🎉🎉"
+		m.jackpotAmount = 0
+		return
+	case Symbol(emoji.HundredPoints):
+		m.dollars += 100
+		m.spinnerMsg = "🎉 Nice 100! You won 100 dollars!"
+		return
+	case Symbol(emoji.Joker):
+		m.spinnerMsg = "Hahahahahahahaha " + emoji.RollingOnTheFloorLaughing.String() + emoji.RollingOnTheFloorLaughing.String() + emoji.RollingOnTheFloorLaughing.String()
+		return
+	case Symbol(emoji.Keycap1):
+		fallthrough
+	case Symbol(emoji.Keycap2):
+		fallthrough
+	case Symbol(emoji.Keycap3):
+		fallthrough
+	case Symbol(emoji.Keycap4):
+		fallthrough
+	case Symbol(emoji.Keycap5):
+		fallthrough
+	case Symbol(emoji.Keycap6):
+		fallthrough
+	case Symbol(emoji.Keycap7):
+		fallthrough
+	case Symbol(emoji.Keycap8):
+		fallthrough
+	case Symbol(emoji.Keycap9):
+		fallthrough
+	case Symbol(emoji.Keycap10):
+		wonDollars := m.slot.getFirstNumber().toInt()
+		m.dollars += wonDollars
+		m.spinnerMsg = "🎉You won " + strconv.Itoa(wonDollars) + " dollars!🎉"
+		return
+
+	}
 }
 
 func (m *model) finishSpin() {
 	m.spinning = false
-	if m.slot.allMatch() {
-		m.handleWin(m.slot[0].toInt())
+	winAmount := m.slot.allNumbersMatch()
+	fmt.Print(winAmount)
+	if winAmount != -1 {
+		m.handleWin()
 	} else {
 		m.spinnerMsg = "Try again :("
+		m.jackpotAmount += 10
 	}
 
 }
@@ -179,14 +256,17 @@ func (m *model) doTick() tea.Cmd {
 }
 
 func initialModel() model {
+	// TODO get the initial model from local storage
 	return model{
-		tokens:     100,
-		dollars:    0,
-		ticksLeft:  0,
-		spinning:   false,
-		spinnerMsg: "",
-		slot:       initSlot(),
-		symbolDT:   initTable(),
+		tokens:        100,
+		dollars:       0,
+		ticksLeft:     0,
+		spinning:      false,
+		spinnerMsg:    "",
+		isDay:         true,
+		jackpotAmount: 0,
+		slot:          initSlot(),
+		symbolDT:      initTable(),
 	}
 }
 
@@ -237,8 +317,20 @@ func (m model) View() string {
 
 	tokenStr := strconv.Itoa(m.tokens)
 	dollarsStr := strconv.Itoa(m.dollars)
+	jackpotAmountStr := strconv.Itoa(m.jackpotAmount)
 
-	consoleTxt := "\n\n" + m.spinnerMsg + "\nPress the spacebar to spin!" + "\nYou have " + tokenStr + " tokens left" + "\nYou have " + dollarsStr + " dollars" + "\nPress 'q' to quit" + "\n"
+	timeStr := "It is currently daytime! You are safe " + emoji.Sunrise.String()
+	if !m.isDay {
+		timeStr = "It is currently nighttime! Watch out for the Wheel of Misfortune! " + emoji.Skull.String()
+	}
+
+	consoleTxt := "\n\n" + m.spinnerMsg +
+		"\nPress the spacebar to spin!" +
+		"\nYou have " + tokenStr + " tokens left" +
+		"\nYou have " + dollarsStr + " dollars" +
+		"\n" + timeStr +
+		"\nThe current jackpot is worth " + jackpotAmountStr + " dollars!" +
+		"\nPress 'q' to quit" + "\n"
 	console := lipgloss.NewStyle().Align(lipgloss.Center, lipgloss.Center).Height(10)
 
 	style := lipgloss.NewStyle().Align(lipgloss.Center, lipgloss.Center)
