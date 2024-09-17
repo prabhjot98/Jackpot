@@ -26,6 +26,7 @@ type model struct {
 	jackpotAmount int
 	slot          Slot
 	symbolDT      SymbolDropTable
+	multiplier    int
 }
 
 type SymbolDropTable map[emoji.Emoji]int
@@ -131,14 +132,16 @@ func (s Slot) getFirstNumber() Symbol {
 	return Symbol(emoji.Joker)
 }
 
+func (s Slot) allSymbolsMatch() bool {
+	if s[0] == s[1] && s[0] == s[2] {
+		return true
+	}
+	return false
+}
+
 // either returns the number they match if they all match or -1 if they don't match
 func (s Slot) allNumbersMatch() int {
 	// handle joker logic
-	// special case if all 3 symbols are jokers
-	if s[0] == Symbol(emoji.Joker) && s[1] == Symbol(emoji.Joker) && s[2] == Symbol(emoji.Joker) {
-		return -99
-	}
-
 	if (s[0] == Symbol(emoji.Joker) && s[1] == s[2]) ||
 		(s[1] == Symbol(emoji.Joker) && s[0] == s[2]) ||
 		(s[2] == Symbol(emoji.Joker) && s[0] == s[1]) {
@@ -195,14 +198,16 @@ func (m *model) handleWin() {
 			m.jackpotAmount,
 		) + " dollars!!!!🎉🎉🎉"
 		m.jackpotAmount = 0
-		return
 	case Symbol(emoji.HundredPoints):
 		m.dollars += 100
 		m.spinnerMsg = "🎉 Nice 100! You won 100 dollars!"
-		return
 	case Symbol(emoji.Joker):
 		m.spinnerMsg = "Hahahahahahahaha " + emoji.RollingOnTheFloorLaughing.String() + emoji.RollingOnTheFloorLaughing.String() + emoji.RollingOnTheFloorLaughing.String()
-		return
+	case Symbol(emoji.GameDie):
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		roll := r.Intn(6) + 1 // generate a random int between [1 and 6]
+		m.multiplier = roll
+		m.spinnerMsg = "Your new multiplier is x" + strconv.Itoa(roll)
 	case Symbol(emoji.Keycap1):
 		fallthrough
 	case Symbol(emoji.Keycap2):
@@ -222,19 +227,15 @@ func (m *model) handleWin() {
 	case Symbol(emoji.Keycap9):
 		fallthrough
 	case Symbol(emoji.Keycap10):
-		wonDollars := m.slot.getFirstNumber().toInt()
+		wonDollars := m.slot.getFirstNumber().toInt() * m.multiplier
 		m.dollars += wonDollars
 		m.spinnerMsg = "🎉You won " + strconv.Itoa(wonDollars) + " dollars!🎉"
-		return
-
 	}
 }
 
 func (m *model) finishSpin() {
 	m.spinning = false
-	winAmount := m.slot.allNumbersMatch()
-	fmt.Print(winAmount)
-	if winAmount != -1 {
+	if m.slot.allSymbolsMatch() || m.slot.allNumbersMatch() != -1 {
 		m.handleWin()
 	} else {
 		m.spinnerMsg = "Try again :("
@@ -265,6 +266,7 @@ func initialModel() model {
 		spinnerMsg:    "",
 		isDay:         true,
 		jackpotAmount: 0,
+		multiplier:    1,
 		slot:          initSlot(),
 		symbolDT:      initTable(),
 	}
@@ -313,7 +315,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 
-	str := "         " + lipgloss.NewStyle().Render(m.slot.toStringArray()...) + "  x1 mult"
+	str := "         " + lipgloss.NewStyle().
+		Render(m.slot.toStringArray()...) +
+		"  x" + strconv.Itoa(m.multiplier) + " mult"
 
 	tokenStr := strconv.Itoa(m.tokens)
 	dollarsStr := strconv.Itoa(m.dollars)
