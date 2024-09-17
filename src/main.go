@@ -54,7 +54,7 @@ func initTable() SymbolDropTable {
 		emoji.GameDie:       50,
 		emoji.FreeButton:    50,
 		emoji.Skull:         50,
-		emoji.Sunrise:       50,
+		emoji.Sunrise:       0,
 		emoji.FullMoon:      50,
 		emoji.Fire:          50,
 		emoji.Bomb:          50,
@@ -75,6 +75,33 @@ func (s SymbolDropTable) rollTable() Symbol {
 
 	// This should never happen if probabilities sum to 1, but just in case:
 	return Symbol(emoji.WhiteFlag)
+}
+
+func (m *model) turnToDay() {
+	m.isDay = true
+	m.symbolDT[emoji.Sunrise] = 0
+	m.symbolDT[emoji.FullMoon] = initTable()[emoji.FullMoon]
+	m.symbolDT[emoji.Joker] = initTable()[emoji.Joker]
+	m.symbolDT[emoji.Skull] = initTable()[emoji.Skull]
+	m.symbolDT[emoji.Keycap6] = 0
+	m.symbolDT[emoji.Keycap7] = 0
+	m.symbolDT[emoji.Keycap8] = 0
+	m.symbolDT[emoji.Keycap9] = 0
+	m.symbolDT[emoji.Keycap10] = 0
+
+}
+
+func (m *model) turnToNight() {
+	m.isDay = false
+	m.symbolDT[emoji.Sunrise] = 50
+	m.symbolDT[emoji.FullMoon] = 0
+	m.symbolDT[emoji.Joker] = initTable()[emoji.Joker] * 4
+	m.symbolDT[emoji.Skull] = initTable()[emoji.Skull] * 2
+	m.symbolDT[emoji.Keycap6] = 50
+	m.symbolDT[emoji.Keycap7] = 50
+	m.symbolDT[emoji.Keycap8] = 50
+	m.symbolDT[emoji.Keycap9] = 50
+	m.symbolDT[emoji.Keycap10] = 50
 }
 
 func (s Symbol) toEmoji() emoji.Emoji {
@@ -212,6 +239,12 @@ func (m *model) handleWin() {
 	case Symbol(emoji.FreeButton):
 		m.isFreeSpin = true
 		m.spinnerMsg = "Nice! You got a free spin! Go ahead and reroll!"
+	case Symbol(emoji.Sunrise):
+		m.turnToDay()
+		m.spinnerMsg = "It's back to being daytime! Numbers 1-5 can show up and the chances for jokers and skulls is back to normal."
+	case Symbol(emoji.FullMoon):
+		m.turnToNight()
+		m.spinnerMsg = "It's nighttime now! Numbers 1-10 can show up and the chance of jokers and skulls is increased!"
 	case Symbol(emoji.Keycap1):
 		fallthrough
 	case Symbol(emoji.Keycap2):
