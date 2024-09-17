@@ -25,6 +25,7 @@ type model struct {
 	windowHeight  int
 	jackpotAmount int
 	slot          Slot
+	isFreeSpin    bool
 	symbolDT      SymbolDropTable
 	multiplier    int
 }
@@ -208,6 +209,9 @@ func (m *model) handleWin() {
 		roll := r.Intn(6) + 1 // generate a random int between [1 and 6]
 		m.multiplier = roll
 		m.spinnerMsg = "Your new multiplier is x" + strconv.Itoa(roll)
+	case Symbol(emoji.FreeButton):
+		m.isFreeSpin = true
+		m.spinnerMsg = "Nice! You got a free spin! Go ahead and reroll!"
 	case Symbol(emoji.Keycap1):
 		fallthrough
 	case Symbol(emoji.Keycap2):
@@ -267,6 +271,7 @@ func initialModel() model {
 		isDay:         true,
 		jackpotAmount: 0,
 		multiplier:    1,
+		isFreeSpin:    false,
 		slot:          initSlot(),
 		symbolDT:      initTable(),
 	}
@@ -294,7 +299,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.spinning {
 				m.spinnerMsg = "Chill, the spinner is still spinning!"
 				return m, nil
-			} else if m.tokens == 0 {
+			} else if m.tokens == 0 && !m.isFreeSpin {
 				m.spinnerMsg = "You have no more tokens!"
 				return m, nil
 			} else if m.tokens < 0 {
@@ -302,8 +307,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			m.spinnerMsg = ""
-			m.tokens--
+			// free spin logic
+			if m.isFreeSpin {
+				m.spinnerMsg = "Enjoy the free spin!"
+				m.isFreeSpin = false
+			} else {
+				m.spinnerMsg = ""
+				m.tokens--
+			}
+
 			m.ticksLeft = 90
 			m.spinning = true
 			return m, m.doTick()
