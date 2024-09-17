@@ -50,15 +50,15 @@ func initTable() SymbolDropTable {
 		emoji.Keycap9:       0,
 		emoji.Keycap10:      0,
 		emoji.HoneyPot:      50,
-		emoji.Joker:         5000,
+		emoji.Joker:         50,
 		emoji.HundredPoints: 50,
 		emoji.GameDie:       50,
 		emoji.FreeButton:    50,
-		emoji.Skull:         50,
-		emoji.Sunrise:       0,
 		emoji.FullMoon:      50,
 		emoji.Fire:          50,
-		emoji.Bomb:          50,
+		emoji.Sunrise:       0,
+		emoji.Skull:         0,
+		emoji.Bomb:          0,
 	}
 }
 
