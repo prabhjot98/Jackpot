@@ -1,5 +1,7 @@
 package main
 
+// TODO implement the Wheel of Misfortune!
+
 import (
 	"encoding/json"
 	"fmt"
@@ -16,7 +18,7 @@ import (
 )
 
 const SAVE_NAME = "save.json"
-const DAILY_TOKENS = 20
+const DAILY_TOKENS = 40
 const LOSE_JACKPOT_INCREASE = 5
 const SPIN_TICKS = 90
 const GAME_VERSION = "0.1"
