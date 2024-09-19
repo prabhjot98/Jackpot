@@ -22,6 +22,8 @@ const DAILY_TOKENS = 40
 const LOSE_JACKPOT_INCREASE = 5
 const SPIN_TICKS = 90
 const GAME_VERSION = "0.1"
+const CHANCE_TO_WIN = 20
+const TOKEN_COST = 100
 
 type model struct {
 	Tokens          int             `json:"tokens"`
@@ -38,6 +40,7 @@ type model struct {
 	Multiplier      int             `json:"multiplier"`
 	LastPlayed      time.Time       `json:"lastPlayed"`
 	GameVersion     string          `json:"gameVesion"`
+	gonnaWin        bool
 	windowWidth     int
 	windowHeight    int
 }
@@ -51,7 +54,7 @@ func initTable() SymbolDropTable {
 	return map[emoji.Emoji]int{
 		emoji.Keycap1:       0,
 		emoji.Keycap2:       0,
-		emoji.Keycap3:       0,
+		emoji.Keycap3:       100,
 		emoji.Keycap4:       0,
 		emoji.Keycap5:       100,
 		emoji.Keycap6:       0,
@@ -233,6 +236,17 @@ func (m *model) SpinSlots() {
 		m.Slot[1] = m.SymbolDropTable.rollTable()
 	}
 	m.Slot[2] = m.SymbolDropTable.rollTable()
+
+	if m.gonnaWin {
+		if m.TicksLeft == 31 {
+			m.Slot[1] = m.Slot[0]
+			return
+		}
+		if m.TicksLeft == 1 {
+			m.Slot[2] = m.Slot[0]
+			return
+		}
+	}
 }
 
 func (m *model) handleWin() {
@@ -296,9 +310,10 @@ func (m *model) handleWin() {
 			feverTxt = "\nBut doubled because you were in fever mode!" + emoji.Fire.String()
 
 		}
-		wonDollars := m.Slot.getFirstNonJokerSymbol().toInt() * m.Multiplier * feverMulti
-		m.Dollars += wonDollars
-		m.SpinnerMsg = "🎉You won " + strconv.Itoa(wonDollars) + " dollars!🎉" + feverTxt
+		baseWonDollars := m.Slot.getFirstNonJokerSymbol().toInt() * m.Multiplier
+		finalWonDollars := baseWonDollars * feverMulti
+		m.Dollars += finalWonDollars
+		m.SpinnerMsg = "🎉You won " + strconv.Itoa(baseWonDollars) + " dollars!🎉" + feverTxt
 	}
 }
 
@@ -321,6 +336,7 @@ func (m *model) finishSpin() {
 		m.SpinnerMsg = "Try again :("
 		m.JackpotAmount += LOSE_JACKPOT_INCREASE
 	}
+	m.gonnaWin = false
 	m.saveGame()
 }
 
@@ -417,6 +433,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.saveGame()
 			return m, tea.Quit
 
+		case "x":
+			if m.Dollars < TOKEN_COST {
+				m.SpinnerMsg = "You don't have enough money to purchase those tokens!"
+				return m, nil
+			}
+			m.Tokens += 10
+			m.Dollars -= TOKEN_COST
+			m.SpinnerMsg = "You bought 10 tokens for $" + strconv.Itoa(TOKEN_COST) + "!"
+			return m, nil
+
 		case " ":
 			if m.Spinning {
 				m.SpinnerMsg = "Chill, the spinner is still spinning!"
@@ -437,6 +463,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.SpinnerMsg = ""
 				m.Tokens--
 			}
+			r := roll(0, 100)
+			if r < CHANCE_TO_WIN {
+				m.gonnaWin = true
+			}
 			m.TicksLeft = SPIN_TICKS
 			m.Spinning = true
 			m.updateLastPlayed()
@@ -451,7 +481,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	slotStr := "         " + lipgloss.NewStyle().
 		Render(m.Slot.toStringArray()...) +
-		"  x" + strconv.Itoa(m.Multiplier) + " mult"
+		"  x" + strconv.Itoa(m.Multiplier) + " multiplier"
 
 	tokenStr := strconv.Itoa(m.Tokens)
 	dollarsStr := strconv.Itoa(m.Dollars)
@@ -464,7 +494,7 @@ func (m model) View() string {
 
 	timeStr := "It is currently daytime! You are safe " + emoji.Sunrise.String()
 	if !m.IsDay {
-		timeStr = "It is currently nighttime! Watch out for the Wheel of Misfortune! " + emoji.Skull.String()
+		timeStr = "It is currently nighttime! Watch out for the Wheel of Misfortune " + emoji.Skull.String()
 	}
 
 	consoleTxt := "\n\n" + m.SpinnerMsg +
@@ -474,7 +504,11 @@ func (m model) View() string {
 		"\n" + timeStr +
 		"\nThe current jackpot is worth " + jackpotAmountStr + " dollars!" +
 		feverModeStr +
-		"\nPress 'q' to quit" + "\n"
+		"\nPress 'q' to quit" +
+		"\n\nShop" +
+		"\n Press 'x' to exchange $" + strconv.Itoa(TOKEN_COST) + " for 10 tokens" +
+		"\n"
+
 	console := lipgloss.NewStyle().Align(lipgloss.Center, lipgloss.Center).Height(10)
 
 	style := lipgloss.NewStyle().Align(lipgloss.Center, lipgloss.Center)
