@@ -17,6 +17,9 @@ build:
 run:
     go run {{_MAIN_PATH}}
 
+reset-save:
+  rm save.json
+
 # Clean build artifacts
 clean:
     go clean
