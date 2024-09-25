@@ -47,7 +47,7 @@ have to worry about losing your progress.
 
 🔥 You enter fever mode
 
-💀 You get to spin on the Wheel of Misfortune
+💀 You lose anywhere from 1 dollar to all your money
 
 ### Glossary
 
@@ -60,5 +60,3 @@ Night time: 4x the probability of rolling a joker and 2x the probability of roll
 Day time: The normal mode for the game
 
 Jackpot: Everytime you lose on the machine you get $5 added to the slot machine
-
-Wheel of Misfortune: A wheel where you can get bad results. The bad results can range from losing a single dollar to losing everything!

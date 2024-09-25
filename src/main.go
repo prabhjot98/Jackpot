@@ -1,7 +1,5 @@
 package main
 
-// TODO implement the Wheel of Misfortune!
-
 import (
 	"encoding/json"
 	"fmt"
@@ -22,7 +20,7 @@ var SAVE_NAME = os.Getenv("HOME") + "/jackpot_save.json"
 const DAILY_TOKENS = 40
 const LOSE_JACKPOT_INCREASE = 5
 const SPIN_TICKS = 90
-const GAME_VERSION = "0.2"
+const GAME_VERSION = "0.3"
 const CHANCE_TO_WIN = 20
 const TOKEN_COST = 100
 
@@ -286,6 +284,12 @@ func (m *model) handleWin() {
 	case Symbol(emoji.Fire):
 		m.FeverMode = true
 		m.SpinnerMsg = "You're in fever mode now!"
+	case Symbol(emoji.Skull):
+		roll := roll(1, m.Dollars)
+		m.Dollars -= roll
+		m.SpinnerMsg = emoji.Skull.String() +
+			"You lost " + strconv.Itoa(roll) + " dollars!!!" +
+			emoji.Skull.String()
 	case Symbol(emoji.Keycap1):
 		fallthrough
 	case Symbol(emoji.Keycap2):
@@ -504,7 +508,7 @@ func (m model) View() string {
 
 	timeStr := "It is currently daytime! You are safe " + emoji.Sunrise.String()
 	if !m.IsDay {
-		timeStr = "It is currently nighttime! Watch out for the Wheel of Misfortune " + emoji.Skull.String()
+		timeStr = "It is currently nighttime! Watch out for skulls " + emoji.Skull.String()
 	}
 
 	consoleTxt := "\n\n" + m.SpinnerMsg +
