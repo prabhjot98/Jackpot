@@ -17,11 +17,12 @@ import (
 	"github.com/rivo/uniseg"
 )
 
-const SAVE_NAME = "save.json"
+var SAVE_NAME = os.Getenv("HOME") + "/jackpot_save.json"
+
 const DAILY_TOKENS = 40
 const LOSE_JACKPOT_INCREASE = 5
 const SPIN_TICKS = 90
-const GAME_VERSION = "0.1"
+const GAME_VERSION = "0.2"
 const CHANCE_TO_WIN = 20
 const TOKEN_COST = 100
 
@@ -47,6 +48,7 @@ type model struct {
 
 type SymbolDropTable map[emoji.Emoji]int
 type TickMsg time.Time
+type DistributeTokenMsg bool
 type Symbol emoji.Emoji
 type Slot [3]Symbol
 
@@ -97,7 +99,6 @@ func (s SymbolDropTable) rollTable() Symbol {
 			return Symbol(e)
 		}
 	}
-
 	// This should never happen if probabilities sum to 1, but just in case:
 	return Symbol(emoji.WhiteFlag)
 }
@@ -108,7 +109,6 @@ func (m *model) turnToDay() {
 	m.SymbolDropTable[emoji.FullMoon] = initTable()[emoji.FullMoon]
 	m.SymbolDropTable[emoji.Joker] = initTable()[emoji.Joker]
 	m.SymbolDropTable[emoji.Skull] = initTable()[emoji.Skull]
-
 }
 
 func (m *model) turnToNight() {
@@ -253,7 +253,10 @@ func (m *model) handleWin() {
 	if m.Slot[0] == Symbol(emoji.Joker) &&
 		m.Slot[1] == Symbol(emoji.Joker) &&
 		m.Slot[2] == Symbol(emoji.Joker) {
-		m.SpinnerMsg = "Hahahahahahahaha " + emoji.RollingOnTheFloorLaughing.String() + emoji.RollingOnTheFloorLaughing.String() + emoji.RollingOnTheFloorLaughing.String()
+		m.SpinnerMsg = "Hahahahahahahaha " +
+			emoji.RollingOnTheFloorLaughing.String() +
+			emoji.RollingOnTheFloorLaughing.String() +
+			emoji.RollingOnTheFloorLaughing.String()
 		return
 	}
 
@@ -318,6 +321,7 @@ func (m *model) handleWin() {
 }
 
 func (m model) saveGame() {
+	m.updateLastPlayed()
 	data, err := json.Marshal(m)
 	if err != nil {
 		fmt.Println("Error writing to file:", err)
@@ -353,7 +357,6 @@ func (m *model) doTick() tea.Cmd {
 }
 
 func (m *model) updateLastPlayed() {
-	m.LastPlayed = time.Now()
 }
 
 func initialGame() model {
@@ -397,19 +400,20 @@ func loadGame() model {
 }
 
 func (m *model) distributeTokens() {
+	m.Tokens += DAILY_TOKENS
+	m.SpinnerMsg = "It's a new day! Have " +
+		strconv.Itoa(DAILY_TOKENS) +
+		" tokens on the house :)"
+	m.saveGame()
+}
+
+func (m model) Init() tea.Cmd {
 	now := time.Now()
 	if m.LastPlayed.Year() < now.Year() ||
 		m.LastPlayed.Month() < now.Month() ||
 		m.LastPlayed.Day() < now.Day() {
-		m.Tokens += DAILY_TOKENS
-		m.SpinnerMsg = "It's a new day! Have " + strconv.Itoa(
-			DAILY_TOKENS,
-		) + " tokens on the house :)"
+		return tea.Cmd(func() tea.Msg { return DistributeTokenMsg(true) })
 	}
-}
-
-func (m model) Init() tea.Cmd {
-	m.distributeTokens()
 	if m.Spinning {
 		return m.doTick()
 	}
@@ -424,6 +428,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case TickMsg:
 		return m, m.doTick()
+
+	case DistributeTokenMsg:
+		m.distributeTokens()
+		return m, nil
 
 	case tea.KeyMsg:
 
@@ -469,7 +477,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.TicksLeft = SPIN_TICKS
 			m.Spinning = true
-			m.updateLastPlayed()
 			m.saveGame()
 			return m, m.doTick()
 		}
@@ -489,7 +496,10 @@ func (m model) View() string {
 
 	feverModeStr := ""
 	if m.FeverMode {
-		feverModeStr = "\n" + emoji.Fire.String() + "You're on fire! Your next win will be doubled!" + emoji.Fire.String()
+		feverModeStr = "\n" +
+			emoji.Fire.String() +
+			"You're on fire! Your next win will be doubled!" +
+			emoji.Fire.String()
 	}
 
 	timeStr := "It is currently daytime! You are safe " + emoji.Sunrise.String()
